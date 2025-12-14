@@ -1,0 +1,47 @@
+Summary / prompt (Fabric 1.21.5)
+
+Idea: “Molestador” is an entity each player sees with their own skin, no nametag, with a black bar vibrating over the face (censorship effect). No GeckoLib. Uses the new RenderState pipeline. Currently it is a normal entity (server-side); it could be turned into a client-only “ghost” later by spawning it only in the ClientWorld.
+
+- Current state
+  - Entity: MolestadorEntity (PathAwareEntity, no AI, noclip=false, no collision, gravity left on).
+  - Registry: ModEntities registers the-lastone:molestador via FabricEntityTypeBuilder (SpawnGroup.MISC, size 0.6x1.8).
+  - Attributes: MAX_HEALTH 20, MOVEMENT_SPEED 0.25 (registered in onInitialize).
+  - Renderer: MolestadorEntityRenderer uses PlayerEntityModel (switches slim/classic based on local player skin), nametag hidden.
+  - Feature: CensorBarFeatureRenderer draws the black bar with jitter in front of the face.
+  - Render state: CensorRenderState extends PlayerEntityRenderState; holds texture + jitterTime.
+  - Bar texture: assets/the-lastone/textures/entity/censor.png.
+  - Client entrypoint registers renderer; build is passing.
+
+- Build/env
+  - Loom 1.14.6, mc 1.21.5, yarn 1.21.5+build.1, loader 0.18.1, fabric-api 0.128.2+1.21.5.
+  - Java 21 (org.gradle.java.home -> C:\Program Files\Java\jdk-21).
+
+- Render pipeline (RenderState)
+  - LivingEntityRenderer<T,S,M> with S = CensorRenderState, M = PlayerEntityModel.
+  - updateRenderState: pulls local player SkinTextures, sets texture, jitterTime; picks slim/classic model.
+  - hasLabel overridden to false.
+  - FeatureRenderer render(MatrixStack, VertexConsumerProvider, int light, S state, float limbAngle, float limbDistance); uses state.relativeHeadYaw/pitch to orient the bar.
+
+- Design notes
+  - Each player sees their own skin on Molestador.
+  - Nametag hidden.
+  - Censorship bar jitter/glitch on face.
+  - Can remain server-side or become client-only ghost (not implemented).
+  - No GeckoLib; plain RenderState/FeatureRenderer/PlayerEntityModel.
+
+- Next steps (optional)
+  - Add spawn egg or a client-only ghost controller (spawn in ClientWorld) if only the local player should see it.
+  - Tweak bar position/size in CensorBarFeatureRenderer.
+  - SmartBrainLib: keep PathAwareEntity; add dependency and configure brain per SBL docs if you add AI.
+
+- Useful commands
+  - Summon: /summon the-lastone:molestador
+  - Build: ./gradlew build --no-daemon
+
+- Key files
+  - Entity: src/main/java/net/aqualoco/thelastone/entity/MolestadorEntity.java
+  - Registry: src/main/java/net/aqualoco/thelastone/entity/ModEntities.java
+  - Renderer: src/main/java/net/aqualoco/thelastone/client/render/MolestadorEntityRenderer.java
+  - Feature (bar): src/main/java/net/aqualoco/thelastone/client/render/feature/CensorBarFeatureRenderer.java
+  - Render state: src/main/java/net/aqualoco/thelastone/client/render/state/CensorRenderState.java
+  - Client init: src/main/java/net/aqualoco/thelastone/client/ThelastoneClient.java

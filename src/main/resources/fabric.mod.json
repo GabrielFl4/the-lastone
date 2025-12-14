@@ -1,0 +1,41 @@
+{
+	"schemaVersion": 1,
+	"id": "the-lastone",
+	"version": "${version}",
+	"name": "the-lastone",
+	"description": "This is an example description! Tell everyone what your mod is about!",
+	"authors": [
+		"Me!"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/the-lastone/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"net.aqualoco.thelastone.Thelastone"
+		],
+		"client": [
+			"net.aqualoco.thelastone.client.ThelastoneClient"
+		],
+		"fabric-datagen": [
+			"net.aqualoco.thelastone.ThelastoneDataGenerator"
+		]
+	},
+	"mixins": [
+		"the-lastone.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.18.1",
+		"minecraft": "~1.21.5",
+		"java": ">=21",
+		"fabric-api": "*",
+		"smartbrainlib": ">=1.16.7"
+	},
+	"suggests": {
+		"another-mod": "*"
+	}
+}
