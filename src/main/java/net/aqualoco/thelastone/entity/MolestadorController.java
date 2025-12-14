@@ -27,12 +27,16 @@ public final class MolestadorController {
     }
 
     private static void tickWorld(ServerWorld world) {
+        if (!world.getRegistryKey().equals(ServerWorld.OVERWORLD)) {
+            return;
+        }
+
         if ((world.getTime() % CHECK_INTERVAL_TICKS) != 0) {
             return;
         }
 
         for (ServerPlayerEntity player : world.getPlayers()) {
-            if (player.isSpectator() || player.getAbilities().invulnerable) {
+            if (player.isSpectator()) {
                 continue;
             }
 
@@ -56,8 +60,8 @@ public final class MolestadorController {
             return;
         }
 
-        long now = world.getTime();
-        if (now < state.huntCooldownUntil()) {
+        long now = world.getServer().getOverworld().getTimeOfDay();
+        if (now < state.huntCooldownUntilTimeOfDay()) {
             return;
         }
 
@@ -87,9 +91,12 @@ public final class MolestadorController {
                     now,
                     cooldownUntil,
                     Optional.of(mob.getUuid()),
-                    state.lastRestGameTime()
+                    state.lastRestTimeOfDay(),
+                    state.pendingRestResetUntilTimeOfDay()
             );
-            player.setAttached(ModAttachments.INSOMNIA_STATE, updated);
+            if (!updated.equals(state)) {
+                player.setAttached(ModAttachments.INSOMNIA_STATE, updated);
+            }
         }
     }
 
@@ -112,19 +119,22 @@ public final class MolestadorController {
     }
 
     private static void pushCooldown(ServerPlayerEntity player, InsomniaState state, long until) {
-        if (until <= state.huntCooldownUntil()) {
+        if (until <= state.huntCooldownUntilTimeOfDay()) {
             return;
         }
 
         InsomniaState updated = new InsomniaState(
                 state.daysWithoutSleep(),
                 state.phase(),
-                state.lastSeenGameTime(),
+                state.lastSeenTimeOfDay(),
                 until,
                 state.activeEntityUuid(),
-                state.lastRestGameTime()
+                state.lastRestTimeOfDay(),
+                state.pendingRestResetUntilTimeOfDay()
         );
-        player.setAttached(ModAttachments.INSOMNIA_STATE, updated);
+        if (!updated.equals(state)) {
+            player.setAttached(ModAttachments.INSOMNIA_STATE, updated);
+        }
     }
 
     private static Range rangeForPhase(int phase) {
@@ -137,10 +147,9 @@ public final class MolestadorController {
 
     private static int getCooldownTicks(ServerWorld world, int phase) {
         return switch (phase) {
-            // Valores reduzidos para testes rápidos
-            case 1 -> world.getRandom().nextBetween(20 * 5, 20 * 10);   // 5–10s
-            case 2 -> world.getRandom().nextBetween(20 * 3, 20 * 6);    // 3–6s
-            default -> world.getRandom().nextBetween(20 * 2, 20 * 4);   // 2–4s
+            case 1 -> world.getRandom().nextBetween(3600, 7200); // 3–6 min
+            case 2 -> world.getRandom().nextBetween(1200, 3600); // 1–3 min
+            default -> world.getRandom().nextBetween(600, 1800); // 30–90 s
         };
     }
 

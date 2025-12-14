@@ -1,9 +1,13 @@
 package net.aqualoco.thelastone.insomnia;
 
 import net.aqualoco.thelastone.ModAttachments;
+import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.stat.Stats;
+
+import java.util.Optional;
 
 public final class InsomniaHandler {
 
@@ -11,7 +15,11 @@ public final class InsomniaHandler {
     }
 
     public static void init() {
-        // sem eventos por enquanto; fazemos o reset durante o tick quando o player realmente dorme
+        EntitySleepEvents.STOP_SLEEPING.register((living, sleepingPosition) -> {
+            if (living instanceof ServerPlayerEntity player) {
+                markPendingSleepReset(player);
+            }
+        });
     }
 
     public static InsomniaState getState(ServerPlayerEntity player) {
@@ -19,31 +27,61 @@ public final class InsomniaHandler {
     }
 
     public static InsomniaState refreshRestState(ServerPlayerEntity player) {
-        long worldTime = player.getWorld().getTime();
-        InsomniaState current = getState(player);
+        MinecraftServer server = player.getServer();
+        if (server == null) return getState(player);
 
-        long baseRest = current.lastRestGameTime() > 0 ? current.lastRestGameTime() : worldTime;
-        long lastRest = baseRest;
+        ServerWorld overworld = server.getOverworld();
+        long now = overworld.getTimeOfDay();
 
-        // Consideramos "dormiu" apenas se ficou deitado tempo suficiente
-        if (player.isSleeping() && player.getSleepTimer() >= 80) {
-            discardActiveEntity(player, current);
-            lastRest = worldTime;
+        InsomniaState before = getState(player);
+        long lastRest = resolveRestTime(before.lastRestTimeOfDay(), now);
+        long pending = before.pendingRestResetUntilTimeOfDay();
+        Optional<java.util.UUID> active = before.activeEntityUuid();
+        long lastSeen = clampTime(before.lastSeenTimeOfDay(), now);
+        long cooldown = clampTime(before.huntCooldownUntilTimeOfDay(), now);
+
+        boolean dirty = false;
+
+        // reset pendente ao amanhecer
+        if (pending > 0 && now >= pending && isDayish(overworld, now)) {
+            discardActiveEntity(player, before);
+            lastRest = now;
+            pending = -1;
+            active = Optional.empty();
+            lastSeen = 0;
+            cooldown = 0;
+            dirty = true;
         }
 
-        long ticksSinceRest = Math.max(0, worldTime - lastRest);
+        // init do lastRest
+        if (lastRest < 0) {
+            lastRest = now;
+            dirty = true;
+        }
+
+        long ticksSinceRest = Math.max(0, now - lastRest);
         int days = (int) (ticksSinceRest / 24000L);
         int phase = computePhase(days);
-        InsomniaState updated = new InsomniaState(days, phase, current.lastSeenGameTime(), current.huntCooldownUntil(), current.activeEntityUuid(), lastRest);
-        player.setAttached(ModAttachments.INSOMNIA_STATE, updated);
+
+        InsomniaState updated = new InsomniaState(
+                days,
+                phase,
+                lastSeen,
+                cooldown,
+                active,
+                lastRest,
+                pending
+        );
+
+        if (dirty || !updated.equals(before)) {
+            player.setAttached(ModAttachments.INSOMNIA_STATE, updated);
+        }
+
         return updated;
     }
 
     public static void resetForSleep(ServerPlayerEntity player) {
-        // Mantido para chamadas manuais; não usado por eventos automáticos
-        discardActiveEntity(player, getState(player));
-        long now = player.getWorld().getTime();
-        player.setAttached(ModAttachments.INSOMNIA_STATE, InsomniaState.empty().withLastRestGameTime(now));
+        markPendingSleepReset(player);
     }
 
     public static int computePhase(int daysWithoutSleep) {
@@ -58,6 +96,20 @@ public final class InsomniaHandler {
         return ticksSinceRest / 24000;
     }
 
+    private static void markPendingSleepReset(ServerPlayerEntity player) {
+        MinecraftServer server = player.getServer();
+        if (server == null) return;
+        ServerWorld overworld = server.getOverworld();
+        long now = overworld.getTimeOfDay();
+
+        InsomniaState current = getState(player);
+        long pending = now + 40; // ~2s depois
+        InsomniaState updated = current.withPendingRestResetUntilTimeOfDay(pending);
+        if (!updated.equals(current)) {
+            player.setAttached(ModAttachments.INSOMNIA_STATE, updated);
+        }
+    }
+
     private static void discardActiveEntity(ServerPlayerEntity player, InsomniaState state) {
         state.activeEntityUuid().ifPresent(uuid -> {
             ServerWorld world = player.getServerWorld();
@@ -66,5 +118,20 @@ public final class InsomniaHandler {
                 entity.discard();
             }
         });
+    }
+
+    private static long clampTime(long value, long now) {
+        if (value < 0) return value;
+        return value > now ? now : value;
+    }
+
+    private static long resolveRestTime(long value, long now) {
+        if (value < 0) return value;
+        return clampTime(value, now);
+    }
+
+    private static boolean isDayish(ServerWorld overworld, long now) {
+        long dayTime = now % 24000L;
+        return overworld.isDay() || dayTime < 1000L;
     }
 }
