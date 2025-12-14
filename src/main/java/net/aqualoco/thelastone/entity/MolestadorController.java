@@ -86,7 +86,8 @@ public final class MolestadorController {
                     state.phase(),
                     now,
                     cooldownUntil,
-                    Optional.of(mob.getUuid())
+                    Optional.of(mob.getUuid()),
+                    state.lastRestGameTime()
             );
             player.setAttached(ModAttachments.INSOMNIA_STATE, updated);
         }
@@ -120,7 +121,8 @@ public final class MolestadorController {
                 state.phase(),
                 state.lastSeenGameTime(),
                 until,
-                state.activeEntityUuid()
+                state.activeEntityUuid(),
+                state.lastRestGameTime()
         );
         player.setAttached(ModAttachments.INSOMNIA_STATE, updated);
     }
@@ -135,9 +137,10 @@ public final class MolestadorController {
 
     private static int getCooldownTicks(ServerWorld world, int phase) {
         return switch (phase) {
-            case 1 -> world.getRandom().nextBetween(20 * 60 * 3, 20 * 60 * 6);
-            case 2 -> world.getRandom().nextBetween(20 * 60, 20 * 60 * 3);
-            default -> world.getRandom().nextBetween(20 * 30, 20 * 90);
+            // Valores reduzidos para testes rápidos
+            case 1 -> world.getRandom().nextBetween(20 * 5, 20 * 10);   // 5–10s
+            case 2 -> world.getRandom().nextBetween(20 * 3, 20 * 6);    // 3–6s
+            default -> world.getRandom().nextBetween(20 * 2, 20 * 4);   // 2–4s
         };
     }
 
