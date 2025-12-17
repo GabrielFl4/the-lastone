@@ -10,6 +10,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
+import net.minecraft.world.RaycastContext;
+import net.minecraft.util.hit.HitResult;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -147,9 +149,9 @@ public final class MolestadorController {
 
     private static int getCooldownTicks(ServerWorld world, int phase) {
         return switch (phase) {
-            case 1 -> world.getRandom().nextBetween(3600, 7200); // 3–6 min
-            case 2 -> world.getRandom().nextBetween(1200, 3600); // 1–3 min
-            default -> world.getRandom().nextBetween(600, 1800); // 30–90 s
+            case 1 -> world.getRandom().nextBetween(3600, 7200); // 3–6 min 3600, 7200
+            case 2 -> world.getRandom().nextBetween(1200, 3600); // 1–3 min 1200, 3600
+            default -> world.getRandom().nextBetween(600, 1800); // 30–90 s 600, 1800
         };
     }
 
@@ -177,6 +179,11 @@ public final class MolestadorController {
                 continue;
             }
 
+            // evitar mobiliário/bloqueios estranhos (ex.: baús/mesas)
+            if (world.getBlockEntity(pos.down()) != null) {
+                continue;
+            }
+
             Vec3d candidateCenter = Vec3d.ofCenter(pos);
             Vec3d dirToCandidate = candidateCenter.subtract(eyePos).normalize();
             double dot = look.dotProduct(dirToCandidate);
@@ -184,6 +191,22 @@ public final class MolestadorController {
                 continue;
             }
 
+            // precisa ter LOS para o centro do candidato (raycast segmentado)
+            var hit = world.raycast(new RaycastContext(
+                    eyePos,
+                    candidateCenter,
+                    RaycastContext.ShapeType.COLLIDER,
+                    RaycastContext.FluidHandling.NONE,
+                    player
+            ));
+            if (hit.getType() != HitResult.Type.MISS) {
+                // pequena tolerância para casos colados na superfície
+                if (hit.getPos().squaredDistanceTo(eyePos) + 0.01 < candidateCenter.squaredDistanceTo(eyePos)) {
+                    continue;
+                }
+            }
+
+            // ainda exigimos alguma cobertura lateral para clima, mas com LOS garantida
             if (!hasCover(world, pos)) {
                 continue;
             }

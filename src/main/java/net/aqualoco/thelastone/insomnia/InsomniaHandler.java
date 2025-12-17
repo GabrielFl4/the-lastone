@@ -37,8 +37,8 @@ public final class InsomniaHandler {
         long lastRest = resolveRestTime(before.lastRestTimeOfDay(), now);
         long pending = before.pendingRestResetUntilTimeOfDay();
         Optional<java.util.UUID> active = before.activeEntityUuid();
-        long lastSeen = clampTime(before.lastSeenTimeOfDay(), now);
-        long cooldown = clampTime(before.huntCooldownUntilTimeOfDay(), now);
+        long lastSeen = before.lastSeenTimeOfDay();
+        long cooldown = before.huntCooldownUntilTimeOfDay();
 
         boolean dirty = false;
 
@@ -121,8 +121,8 @@ public final class InsomniaHandler {
     }
 
     private static long clampTime(long value, long now) {
-        if (value < 0) return value;
-        return value > now ? now : value;
+        if (value < -1) return -1;
+        return value;
     }
 
     private static long resolveRestTime(long value, long now) {
